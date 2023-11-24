@@ -1,0 +1,792 @@
+\documentclass[a4paper,10pt]{report} 
+\usepackage[utf8]{inputenc}
+\usepackage{dpackage,indentfirst} %it's important to load this one last, otherwise theorem environments counter will be messed up
+
+\author{Dario Gatto}
+\title{An Introduction to Quantum Computing for Particle Physics}
+
+\begin{document}
+\maketitle
+\chapter*{Preface}
+The purpose of these short notes is to provide a first introduction to the subject of quantum simulations for high-energy physics. Though the only strictly necessary pre-requisite for this material is a good understanding of Quantum Mechanics, some knowledge of Quantum Field Theory and Quantum Computation are also advised. We will focus on the simplest instance of relativistic scattering, i.e. scattering of a single scalar field with quartic self-interaction. The simulation is implemented using the quantum algorithm of Jordan, Lee and Preskill (arXiv:1112.4833 [hep-th]). These notes are divided in two parts. In the first one, we lay the quantum-field-theoretical basis of the simulation. In the second one, we explore the techniques and subroutines  
+
+\chapter{Lattice Field Theory}
+\section{Lattice and Completeness Relations}
+In a lattice field theory, continuous space--and possibly also time--is approximated with a discrete lattice. For this simulation time will be kept continuous, while space will be replaced by an infinite $d$-dimensional lattice $\Omega$ with spacing $a$. With respect to a reference frame with basis vectors $\hat{\mathbf{r}}_1,\dots,\hat{\mathbf{r}}_d$ oriented along the principal directions of the lattice, the lattice sites $\mathbf{x}\in\Omega$ can be labeled by means of a multi-index
+\begin{equation}
+\mathbf{x} = \mathbf{x_0} + a\boldsymbol{\nu},
+\end{equation}
+where $\boldsymbol{\nu}=(\nu_1,...,\nu_d)$ for some integers $\nu_j$, and $\mathbf{x}_0\in\Omega$ is an arbitrary lattice point. We can choose the origin of our frame of reference so that $\mathbf{x_0}=\mathbf{0}$. It also customary to impose periodic boundary conditions on the quantum field $\phi$, so that
+\begin{equation}
+\phi(\mathbf{x} + L\hat{\mathbf{r}}_j) = \phi(\mathbf{x}),
+\end{equation} 
+where $L=\ell a$ for some positive integer $\ell$. Then, we can limit ourselves to considering the lattices sites in a unit cell, restricting the range of the integers $\nu_j$ can to $\{0,1,...\,,\ell-1\}$. Since momentum is canonically conjugated to position, it too is taken to be discretised on a corresponding $d$-dimensional lattice $\Gamma$, with spacing $\kappa=\frac{2\pi}{L}$, and for which we adopt analogous conventions. The exact quantum field is recovered in the limit where $a\longrightarrow0$ and $L\longrightarrow+\infty$.
+
+The symbols $(\nu_1,\dots,\nu_d)$ naturally induce an ordering on the lattice sites, i.e. the one obtained by labeling the sites consecutively in lexicographic order. This is the same as counting in base $\ell$: for instance, in $d=3$
+\begin{align}
+&(0,0,0)\longmapsto0, \quad (0,0,1)\longmapsto1, \quad \dots\,, \quad (0,0,\ell-1)\longmapsto \ell-1, \nonumber\\
+&(0,1,0)\longmapsto \ell, \quad (0,1,1)\longmapsto \ell+1, \qquad (0,1,2)\longmapsto \ell+2, \quad \dots
+\end{align}
+More formally, we can define the lattice indexing function
+\begin{align}
+\iota: \Omega\,&\longrightarrow \quad \{1,\dots,\ell^d\} \nonumber\\
+a\boldsymbol{\nu} &\longmapsto 1+\sum_{j=1}^{d} \nu_{d-j+1}\ell^{j-1},
+\end{align}
+where we have shifted the enumeration by 1 for notational convenience.
+It should be remarked that, strictly speaking, if $\mathbf{p}\in\Gamma$ then $-\mathbf{p}\notin\Gamma$. However, given the lattice periodicity boundary conditions, $-\mathbf{p}$ can be naturally identified with the vector in $\Gamma$ obtained by cell translation:
+\begin{align}
+-\mathbf{p} &\sim \Big(\frac{2\pi}{a},\frac{2\pi}{a},\frac{2\pi}{a}\Big) - \mathbf{p} = \kappa(\ell,\ell,\ell) - \kappa(\nu_1,\nu_2,\nu_3) \nonumber\\
+&\hspace{4cm}= \kappa(\ell-\nu_1,\ell-\nu_2,\ell-\nu_3)\in\Gamma.
+\end{align}
+Thus, in the following, the expression $-\mathbf{p}\in\Gamma$ shall be understood by means of this identification. Finally, we will often make use the \textit{completeness relations}
+\begin{equation}
+\label{eq:momentum_completeness}
+\sum_{\mathbf{x}\in\Omega}e^{i\mathbf{p}\cdot\mathbf{x}} = \ell^d\,\delta_{\mathbf{p},\mathbf{0}}, \qquad 
+\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}} = \ell^d\,\delta_{\mathbf{x},\mathbf{0}},
+\end{equation}
+which can easily be proved with the help of the geometric sequence formula.
+
+\section{Lattice Hamiltonian and Field Representation}
+A massive scalar field with quartic self-interaction is described by the discrete Hamiltonian
+\begin{equation}
+H = a^d\sum_{\mathbf{x}\in\Omega}\bigg[\frac{1}{2}\pi(\mathbf{x})^2 + \frac{1}{2}\nabla_a\phi(\mathbf{x})^2 + \frac{1}{2}m^2\phi(\mathbf{x})^2 + \frac{\lambda}{4!}\phi(\mathbf{x})^4\bigg],
+\end{equation}
+where $\phi(\mathbf{x})$ is the field at the point $\mathbf{x}$, $\pi(\mathbf{x}) = \de_t\phi(\mathbf{x})$ is the conjugated field, 
+\begin{equation}
+\nabla_a\phi(\mathbf{x})^2 = \sum_{j=1}^d\frac{\big(\phi(\mathbf{x}+a\hat{r}_j)-\phi(\mathbf{x})\big)^2}{a^2},
+\end{equation}
+is the discretised gradient squared, $m$ is the mass of the field, and $\lambda$ is the coupling constant. The Hamiltonian is quantised by imposing the canonical commutation relations
+\begin{equation}
+\label{eq:ccr}
+[\phi(\mathbf{x}),\pi(\mathbf{y})] = \frac{i}{a^d}\,\delta_{\mathbf{x},\mathbf{y}}, \qquad [\phi(\mathbf{x}),\phi(\mathbf{y})] = [\pi(\mathbf{x}),\pi(\mathbf{y})] = 0.
+\end{equation}
+In the so-called \textit{field representation}, this is done by introducing, for each of the $N = \ell^d$ lattice sites, a real variable $\phi_i$ corresponding to spectrum of the field $\phi(\mathbf{x})$. A quantum state $\ket{\Psi}$ is represented by an $L^2$ function $\Psi(\phi_1,\dots,\phi_N)$ of unit norm, and the action of the field operators is given by
+\begin{equation}
+\label{eq:canonical_repr}
+\phi(\mathbf{x})\Psi(\phi_1,\dots,\phi_N) = \phi_{\iota(\mathbf{x})}\Psi(\phi_1,\dots,\phi_N), \quad \pi(\mathbf{x})\Psi(\phi_1,\dots,\phi_N) = \frac{1}{ia^d}\pdv{\Psi}{\phi_{\iota(\mathbf{x})}}.
+\end{equation}
+In the case of a free field, i.e. when $\lambda=0$, scattering is trivial and the spectrum of the free Hamiltonian
+\begin{equation}
+H^{(0)} = a^d\sum_{\mathbf{x}\in\Omega}\bigg[\frac{1}{2}\pi(\mathbf{x})^2 + \frac{1}{2}\nabla_a\phi(\mathbf{x})^2 + \frac{1}{2}m^2\phi(\mathbf{x})^2 + \frac{\lambda}{4!}\phi(\mathbf{x})^4\bigg],
+\label{eq:free_ham}
+\end{equation}
+can be calculated exactly. Introducing the \textit{dispersion relation}
+\begin{align}
+\omega(\mathbf{p})^2 = m^2 + \frac{4}{a^2}\sum_{j=1}^d\sin(\frac{a\mathbf{p}\cdot\hat{r}_j}{2})^2,
+\end{align}
+we can define the annihilation and creation operators,
+\begin{align}
+\label{eq:annihil_op}
+a_\mathbf{p} &= a^d\sum_{\mathbf{x}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{x}}\bigg[\sqrt{\frac{\omega(\mathbf{p})}{2}}\phi(\mathbf{x}) + i\sqrt{\frac{1}{2\omega(\mathbf{p})}}\pi(\mathbf{x})\bigg], \\
+\label{eq:create_op}
+a^\dag_\mathbf{p} &= a^d\sum_{\mathbf{x}\in\Omega}e^{i\mathbf{p}\cdot\mathbf{x}}\bigg[\sqrt{\frac{\omega(\mathbf{p})}{2}}\phi(\mathbf{x}) - i\sqrt{\frac{1}{2\omega(\mathbf{p})}}\pi(\mathbf{x})\bigg].
+\end{align}
+which, by Eq. \eqref{eq:ccr} and \eqref{eq:momentum_completeness}, obey the commutation relations
+\begin{align}
+[a_\mathbf{p},a^\dag_\mathbf{q}] = L^d\,\delta_{\mathbf{p},\mathbf{q}}, \qquad [a_\mathbf{p},a_\mathbf{q}] = [a_\mathbf{p}^\dag,a_\mathbf{q}^\dag] = 0.
+\label{eq:CCR}
+\end{align}
+Using the completeness relations, the inverse transformations to  \eqref{eq:annihil_op} and \eqref{eq:create_op} can be found to be
+\begin{align}
+\label{eq:field_op_phi}
+\phi(\mathbf{x}) &= \frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}\sqrt{\frac{1}{2\omega(\mathbf{p})}}(a_\mathbf{p} + a^\dag_{-\mathbf{p}}), \\
+\label{eq:field_op_pi}
+\pi(\mathbf{x}) &= \frac{1}{iL^d}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}\sqrt{\frac{\omega(\mathbf{p})}{2}}(a_\mathbf{p} - a^\dag_{-\mathbf{p}}).
+\end{align}
+Substituting these expression into Eq. \eqref{eq:free_ham}, the free Hamiltonian simplifies to
+\begin{align}
+H^{(0)} = \frac{1}{2L^d}\sum_{\mathbf{p}\in\Gamma}\omega(\mathbf{p})(a_\mathbf{p}a^\dag_\mathbf{p}+a^\dag_{\mathbf{p}}a_{\mathbf{p}}) = \frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}\omega(\mathbf{p})a^\dag_{\mathbf{p}}a_{\mathbf{p}} + E^{(0)}\mathbb{I},
+\end{align}
+where the commutator $[a_\mathbf{p},a_\mathbf{p}^\dag]$ gives rise to the point-zero energy
+\begin{equation}
+E^{(0)} = \sum_{\mathbf{p}\in\Gamma}\frac{1}{2}\,
+\omega(\mathbf{p}).
+\end{equation}
+
+\section{Free Vacuum and Correlation Function}
+The vacuum state of the free theory is characterised by the equation
+\begin{equation}
+\label{eq:vac_def}
+a_\mathbf{p}\ket{\mathrm{vac}(0)} = 0
+\end{equation}
+for every $\mathbf{p}\in\Gamma$. We can therefore use the representation \eqref{eq:canonical_repr} to find a function $v_0(\phi_1,\dots,\phi_N)$ corresponding to $\ket{\mathrm{vac}(0)}$ as the solution to the differential equations
+\begin{equation}
+\label{eq:vacuum_diff_eq}
+\sum_{\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{y}}\bigg[\pdv{}{\phi_{\iota(\mathbf{y})}} + a^d\omega(\mathbf{p})\phi_{\iota(\mathbf{y})}\bigg]v_0(\phi_1,\dots,\phi_N) = 0.
+\end{equation}
+Let us make a multivariate Gaussian ansatz
+\begin{equation}
+\label{eq:vacuum_wavefunction}
+v_0(\phi_1,\dots,\phi_N) = C\exp(-\frac{1}{2}\sum_{i,j=1}^N\Delta_{ij}\phi_i\phi_j),
+\end{equation}
+where $\Delta$ is a symmetric matrix and $C$ is a normalization constant. Then, 
+\begin{equation}
+\pdv{v_0}{\phi_k} = -\frac{1}{2}\sum_{j=1}^N(\Delta_{kj} + \Delta_{jk})\phi_jv_0(\phi_1,...\,,\phi_N) = -\sum_{j=1}^N\Delta_{kj}\phi_jv_0(\phi_1,...\,,\phi_N),
+\end{equation}
+so that Equation \eqref{eq:vacuum_diff_eq} becomes
+\begin{align}
+\sum_{\mathbf{x}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{x}}\bigg[-\sum_{j=1}^N\Delta_{\iota(\mathbf{x}),j}\phi_j + a^d\omega(\mathbf{p})\phi_{\iota(\mathbf{x})}\bigg]v_0(\phi_1,\dots,\phi_N) = 0.
+\end{align}
+We are therefore led to the equation
+\begin{align}
+a^d\sum_{\mathbf{x}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{x}}\omega(\mathbf{p})\phi_{\iota(\mathbf{x})} &= \sum_{\mathbf{x}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{x}}\sum_{j=1}^N\Delta_{\iota(\mathbf{x}),j}\phi_j = \nonumber\\
+&= \sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{y}}\Delta_{\iota(\mathbf{y}),\iota(\mathbf{x})}\phi_{\iota(\mathbf{x})},
+\end{align}
+that is, reorganising the terms,
+\begin{align}
+\sum_{\mathbf{x}\in\Omega}\bigg[a^d e^{-i\mathbf{p}\cdot\mathbf{x}}\omega(\mathbf{p}) - \sum_{\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{y}}\Delta_{\iota(\mathbf{y}),\iota(\mathbf{x})}\bigg]\phi_{\iota(\mathbf{x})} = 0,
+\end{align}
+which can only hold if
+\begin{align}
+a^d e^{-i\mathbf{p}\cdot\mathbf{x}}\omega(\mathbf{p}) = \sum_{\mathbf{z}\in\Omega}e^{-i\mathbf{p}\cdot\mathbf{z}}\Delta_{\iota(\mathbf{x}),\iota(\mathbf{z})},
+\end{align}
+thus, multiplying both sides by $e^{i\mathbf{p}\cdot\mathbf{y}}$ and summing over $\Gamma$, we get
+\begin{align}
+a^d\sum_{\mathbf{p}\in\Gamma}e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\omega(\mathbf{p}) &= \sum_{\mathbf{p}\in\Gamma}\sum_{\mathbf{z}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{y}-\mathbf{z})}\Delta_{\iota(\mathbf{x}),\iota(\mathbf{z})} = \nonumber\\
+&= \sum_{\mathbf{z}\in\Omega}\ell^d\delta_{\mathbf{y},\mathbf{z}}\Delta_{\iota(\mathbf{x}),\iota(\mathbf{z})} = \ell^d\,\Delta_{\iota(\mathbf{x}),\iota(\mathbf{y})}
+\end{align}
+from which we deduce
+\begin{align}
+\label{eq:vacuum_correl_matrix}
+\Delta_{\iota(\mathbf{x}),\iota(\mathbf{y})} = \frac{a^d}{N}\sum_{\mathbf{p}\in\Gamma}e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\omega(\mathbf{p}).
+\end{align}
+Notice that because $\omega(\mathbf{p})$ is even, the right-hand side of Equation \eqref{eq:vacuum_correl_matrix} is real. In fact $\Delta$ is a positive matrix, as for any $N$-tuple of complex numbers $(z_1,\dots,z_N)$,
+\begin{align}
+\sum_{i,j=1}^Nz_i^*\Delta_{ij}z_j &= \frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}^N\sum_{\mathbf{p}\in\Gamma}z_{\iota(\mathbf{x})}^*e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}z_{\iota(\mathbf{y})}\omega(\mathbf{p}) = \nonumber\\
+&\hspace{2cm}=\frac{a^d}{N}\sum_{\mathbf{p}\in\Gamma}\bigg|\sum_{\mathbf{x}\in\Omega}z_{\iota(\mathbf{x})}e^{i\mathbf{p}\cdot\mathbf{x}}\bigg|^2\omega(\mathbf{p}) \ge0.
+\end{align}
+Therefore $\Delta$ can be diagonalized with an orthogonal matrix $O$, so that
+\begin{equation}
+O^{T}\Delta O = \mathrm{diag}(s_1,\dots,s_N),
+\end{equation}
+where $\omega_1,\dots,\omega_N$ are the eigenvalues of $\Delta$. Then, performing the change of variables
+\begin{equation}
+(\varphi_1,\dots,\varphi_N)^T = O\cdot(\phi_1,\dots,\phi_N)^T,
+\end{equation}
+we can easily calculate the Gaussian integral
+\begin{align}
+1 &= \langle\mathrm{vac}(0)|\mathrm{vac}(0)\rangle = |C|^2\int\exp(-\sum_{i,j=1}^N\Delta_{ij}\phi_i\phi_j)\dd[N]{\phi} = \nonumber\\
+&=|C|^2\int\exp(-\sum_{i=1}^N\omega_i\varphi_i^2)\dd[N]{\varphi} = \nonumber\\
+&=|C|^2\prod_{i=1}^N\int_{-\infty}^{+\infty}e^{-\omega_i\varphi_i^2}\dd\varphi_i = |C|^2\prod_{i=1}^N\sqrt{\frac{\pi}{\omega_i}} = |C|^2\sqrt{\frac{\pi^N}{\det(\Delta)}},
+\end{align}
+from where we find the normalization constant
+\begin{align}
+C = \sqrt[4]{\frac{\det(\Delta)}{\pi^N}}.
+\end{align}
+
+In scattering theory, the \textit{two-point correlation function}
+\begin{align}
+G^{(0)}(\mathbf{x}-\mathbf{y}) = \bra{\mathrm{vac}(0)}\phi(\mathbf{x})\phi(\mathbf{y})\ket{\mathrm{vac}(0)} 
+\end{align}
+plays a crucial role. Substituting the field operators with Eq. \eqref{eq:field_op_phi} and \eqref{eq:field_op_pi}, we get
+\begin{align}
+&\bra{\mathrm{vac}(0)}\phi(\mathbf{x})\phi(\mathbf{y})\ket{\mathrm{vac}(0)} = \nonumber\\
+&\frac{1}{L^{2d}}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{y})}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}\bra{\mathrm{vac}(0)}(a_\mathbf{p} + a^\dag_{-\mathbf{p}})(a_\mathbf{q} + a^\dag_{-\mathbf{q}})\ket{\mathrm{vac}(0)} = \nonumber\\
+&\frac{1}{L^{2d}}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{y})}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}\bra{\mathrm{vac}(0)}a_\mathbf{p}a^\dag_{-\mathbf{q}}\ket{\mathrm{vac}(0)},
+\end{align}
+where we have used Equation \eqref{eq:vac_def} and its adjoint. By commuting the creation and annihilation operators, we find
+\begin{align}
+&G^{(0)}(\mathbf{x}-\mathbf{y}) = \frac{1}{L^{2d}}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{y})}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}\bra{\mathrm{vac}(0)}a_\mathbf{p}a^\dag_{-\mathbf{q}}\ket{\mathrm{vac}(0)} = \nonumber\\
+&\qquad\frac{1}{L^{2d}}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{y})}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}\bra{\mathrm{vac}(0)}a^\dag_{-\mathbf{q}}a_\mathbf{p} + L^d\delta_{\mathbf{p},-\mathbf{q}}\ket{\mathrm{vac}(0)} = \nonumber\\
+&\hspace{1.8cm}= \frac{1}{L^{d}}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{1}{2\omega(\mathbf{p})}.
+\end{align}
+Notice that, like the mixing matrix $\Delta$, the correlation function is real. In fact,  $\Delta$ is essentially the inverse of the correlation function
+\begin{align}
+\sum_{\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\Delta_{\iota(\mathbf{y}),\iota(\mathbf{z})} &= \frac{a^d}{NL^d}\sum_{\mathbf{y}\in\Omega}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})-i\mathbf{q}\cdot(\mathbf{y}-\mathbf{z})}\frac{\omega(\mathbf{q})}{2\omega(\mathbf{p})} = \nonumber\\
+&=\frac{1}{N^2}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{z})}\frac{\omega(\mathbf{q})}{2\omega(\mathbf{p})}\sum_{\mathbf{y}\in\Omega}e^{-i(\mathbf{p}+\mathbf{q})\cdot\mathbf{y}} = \nonumber\\
+&= \frac{1}{N^2}\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i(\mathbf{p}\cdot\mathbf{x}+\mathbf{q}\cdot\mathbf{z})}\frac{\omega(\mathbf{q})}{2\omega(\mathbf{p})}\ell^d\delta_{\mathbf{q},-\mathbf{p}} = 
+\nonumber\\
+&=\frac{1}{N}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{z})}\frac{\omega(-\mathbf{p})}{2\omega(\mathbf{p})} = \nonumber\\
+&=\frac{1}{2N}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{z})} = \frac{1}{2N}\ell^{d}\delta_{\mathbf{x},\mathbf{z}} = \frac{1}{2}\delta_{\mathbf{x},\mathbf{z}}.
+\end{align}
+
+\section{Time Evolution}
+As $\{\phi(\mathbf{x}):\mathbf{x}\in\Omega\}$ is a complete commuting set of observables, any quantum state $\ket{\Psi}$ can be expressed as
+\begin{equation}
+\ket{\Psi} = \int\Psi(\phi_1,\dots,\phi_N)\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi},
+\end{equation}
+where $\ket{\phi_1,\dots,\phi_N} = \ket{\phi_1}\otimes\dots\otimes\ket{\phi_N}$ is a simultaneous eigenstate of the field operators,
+\begin{equation}
+\phi(\mathbf{x})\ket{\phi_1,...,\phi_N} = \phi_{\iota(\mathbf{x})}\ket{\phi_1,...,\phi_N},
+\end{equation}
+and $\Psi(\phi_1,\dots,\phi_N)$ is the $L^2$ function of Eq. \eqref{eq:canonical_repr}. 
+Consider the $\phi$-sector of the Hamiltonian,
+\begin{equation}
+H_\phi = a^d\sum_{\mathbf{x}\in\Omega}\bigg[\frac{1}{2}\nabla_a\phi(\mathbf{x})^2 + \frac{1}{2}m^2\phi(\mathbf{x})^2 + \frac{\lambda}{4!}\phi(\mathbf{x})^4\bigg].
+\end{equation}
+Since $\ket{\phi_1,\dots,\phi_N}$ is a field eigenstate,  $H_\phi$ acts on it simply by multiplication
+\begin{align}
+H_\phi&\ket{\phi_1,\dots,\phi_N} = \nonumber\\
+&=a^d\sum_{i=1}^N\Bigg[\frac{1}{2}\sum_{j=1}^d\frac{(\phi_{i+\ell^{j-1}}-\phi_i)}{a^2} + \frac{1}{2}m^2\phi_i^2 + \frac{\lambda}{4!}\phi_i^4\Bigg]\ket{\phi_1,\dots,\phi_N} = \nonumber\\
+&:=\Theta(\phi_1,\dots,\phi_N)\ket{\phi_1,\dots,\phi_N},
+\label{eq:Theta-phase_def}
+\end{align}
+Then, the time evolution of $\ket{\Psi}$ under $H_\phi$ is given by the expression
+\begin{align}
+e^{-iH_\phi t}\ket{\Psi} &= \int\Psi(\phi_1,\dots,\phi_N)\,e^{-iH_\phi t}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi} = \nonumber\\
+&=\int\Psi(\phi_1,\dots,\phi_N)\,e^{-i\Theta(\phi_1,\dots,\phi_N)t}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi}.
+\label{eq:phi_evolution}
+\end{align}
+Consider now the remaining part of the Hamiltonian, i.e. the $\pi$-sector
+\begin{equation}
+H_\pi = a^d\sum_{\mathbf{x}\in\Omega}\frac{1}{2}\pi(\mathbf{x})^2.
+\end{equation}
+Let $\ket{\pi_1,\dots,\pi_N}$ be a simultaneous eigenstate of the conjugated field operators,
+\begin{equation}
+\pi(\mathbf{x})\ket{\pi_1,\dots,\pi_N} = \pi_{\iota(\mathbf{x})}\ket{\pi_1,\dots,\pi_N},
+\end{equation}
+Then, analogously to Eq. \eqref{eq:Theta-phase_def}, it holds
+\begin{align}
+H_\pi&\ket{\pi_1,\dots,\pi_N} = a^d\sum_{i=1}^N\frac{1}{2}\pi_i^2\ket{\pi_1,\dots,\pi_N} := \Phi(\pi_1,\dots,\pi_N)\ket{\pi_1,\dots,\pi_N}.
+\end{align}
+The $\pi$-eigenstates are related to the $\phi$-eigenstates by a $N$-dimensional Fourier transform
+\begin{align}
+\label{eq:pi_eigen_tranform}
+&\ket{\pi_1,\dots,\pi_N} = \frac{1}{(2\pi)^\frac{N}{2}}\int e^{-i(\phi_1\pi_1+\dots+\phi_N\pi_N)}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi}, \\
+\label{eq:phi_eigen_tranform}
+&\ket{\phi_1,\dots,\phi_N} = \frac{1}{(2\pi)^\frac{N}{2}}\int e^{i(\phi_1\pi_1+\dots+\phi_N\pi_N)}\ket{\pi_1,\dots,\pi_N}\dd[N]{\pi}.
+\end{align}
+Therefore, using Eq. \eqref{eq:pi_eigen_tranform} and \eqref{eq:phi_eigen_tranform}, the time evolution under $H_\pi$ reads
+\begin{align}
+&e^{-iH_\pi t}\ket{\Psi} = \int\Psi(\phi_1,\dots,\phi_N)\,e^{-iH_\pi t}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi} = \nonumber\\
+&\int\Psi(\phi_1,\dots,\phi_N)\frac{1}{(2\pi)^\frac{N}{2}}\int e^{i(\phi_1\pi_1+\dots+\phi_N\pi_N)}e^{-iH_\pi t}\ket{\pi_1,\dots,\pi_N}\dd[N]{\phi}\dd[N]{\pi} = \nonumber\\
+&\frac{1}{(2\pi)^\frac{N}{2}}\int\Psi(\phi_1,\dots,\phi_N)\,e^{i(\phi_1\pi_1+\dots+\phi_N\pi_N)}e^{-i\Phi(\pi_1,\dots,\pi_N)t}\times \nonumber\\
+&\hspace{7.3cm}\ket{\pi_1,\dots,\pi_N}\dd[N]{\phi}\dd[N]{\pi} = \nonumber \\
+&\frac{1}{(2\pi)^\frac{N}{2}}\int\Psi(\phi_1,\dots,\phi_N)\,e^{i(\phi_1\pi_1+\dots+\phi_N\pi_N)}e^{-i\Phi(\pi_1,\dots,\pi_N)t}\times \nonumber\\
+&\hspace{2.5cm}\times\frac{1}{(2\pi)^\frac{N}{2}}\int e^{-i(\varphi_1\pi_1+\dots+\varphi_N\pi_N)}\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\phi}\dd[N]{\pi}\dd[N]{\varphi} = \nonumber\\
+&\frac{1}{(2\pi)^N}\int\Psi(\phi_1,\dots,\phi_N)\,e^{i[(\phi_1-\varphi_1)\pi_1+\dots+(\phi_N-\varphi_N)\pi_N-\Phi(\pi_1,\dots,\pi_N)t]}\times\nonumber\\
+&\hspace{7.3cm}\times\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\phi}\dd[N]{\pi}\dd[N]{\varphi}.
+\label{eq:pi_evolution}
+\end{align}
+Since $H=H_\phi+H_\pi$, by making use of the Suzuki-Trotter formula
+\begin{equation}
+e^{-iHt} = \bigg(e^{-iH_\phi\frac{t}{n}}\cdot e^{-iH_\pi\frac{t}{n}}\bigg)^n + \mathcal{O}\bigg(\frac{||[H_\phi,H_\pi]||t^2}{n}\bigg),
+\end{equation}
+we can obtain an approximation of the time evolution of $\ket{\Psi}$ in the field representation by alternating Eq. \eqref{eq:phi_evolution} and \eqref{eq:pi_evolution} until the required precision is met.
+
+\section{Wavepacket preparation}
+Let us consider a discretised wavefunction $\psi(\mathbf{x})$, which we assume to be normalised so that
+\begin{equation}
+a^d\sum_{\mathbf{x}\in\Omega}|\psi(\mathbf{x})|^2 = 1.
+\end{equation}
+In order to describe the field in the quantum state corresponding to $\psi(\mathbf{x})$, we introduce the localised annihilation and creation operators
+\begin{align}
+a_\mathbf{x} = \frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}\sqrt{\frac{1}{2\omega(\mathbf{p})}}a_\mathbf{p}, \qquad a^\dag_\mathbf{x} = \frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}e^{-i\mathbf{p}\cdot\mathbf{x}}\sqrt{\frac{1}{2\omega(\mathbf{p})}}a^\dag_\mathbf{p}.
+\end{align}
+In terms of field operators, the localised annihilation and creation operator can be written as
+\begin{align}
+a_\mathbf{x} &= \frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}\sqrt{\frac{1}{2\omega(\mathbf{p})}}a_\mathbf{p} = \nonumber\\
+&=\frac{a^d}{L^d}\sum_{\mathbf{p}\in\Gamma}\sum_{\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\bigg[\frac{1}{2}\phi(\mathbf{y}) + \frac{i}{2\omega(\mathbf{p})}\pi(\mathbf{y})\bigg] = \nonumber\\
+&=\frac{1}{2}\sum_{\mathbf{y}\in\Omega}\delta_{\mathbf{x},\mathbf{y}}\phi(\mathbf{y}) + \frac{i}{\ell^d}\sum_{\mathbf{p}\in\Gamma}\sum_{\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{y}) = \nonumber\\
+&=\frac{1}{2}\phi(\mathbf{x}) + ia^d \sum_{\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\pi(\mathbf{y}), \\
+a^\dag_\mathbf{x} &= \frac{1}{2}\phi(\mathbf{x}) - ia^d \sum_{\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\pi(\mathbf{y}).
+\end{align}
+We can then define the wave operators
+\begin{align}
+a_\psi = \eta(\psi)^*a^d\sum_{\mathbf{x}\in\Omega}\psi(\mathbf{x})^*a_\mathbf{x}, \qquad a^\dag_\psi &= \eta(\psi)\,a^d\sum_{\mathbf{x}\in\Omega}\psi(\mathbf{x})\,a^\dag_\mathbf{x},
+\end{align}
+where $\eta(\psi)$ is an appropriate normalisation constant. According to the Fock space formalism, the state of the quantum field is described by the vector
+\begin{equation}
+\ket{\psi} = a^\dag_\psi\ket{\mathrm{vac}(0)},
+\end{equation}
+so that $\eta(\psi)$ is determined by the condition 
+\begin{equation}
+\langle\psi|\psi\rangle = \bra{\mathrm{vac}(0)}a_\psi a^\dag_\psi\ket{\mathrm{vac}(0)} = 1.
+\end{equation}
+Expanding the ket in the expression above yields
+\begin{align}
+&a_\psi a^\dag_\psi\ket{\mathrm{vac}(0)} = a^{2d}|\eta(\psi)|^2\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*\psi(\mathbf{y})a_\mathbf{x}a^\dag_\mathbf{y}\ket{\mathrm{vac}(0)} = \nonumber\\
+&\frac{a^{2d}}{L^{2d}}|\eta(\psi)|^2\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*\psi(\mathbf{y})\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}e^{-i\mathbf{q}\cdot\mathbf{y}}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}a_\mathbf{p}a^\dag_\mathbf{q}\ket{\mathrm{vac}(0)} = \nonumber\\
+&\frac{a^{2d}}{L^{2d}}|\eta(\psi)|^2\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*\psi(\mathbf{y})\sum_{\mathbf{p},\mathbf{q}\in\Gamma}e^{i\mathbf{p}\cdot\mathbf{x}}e^{-i\mathbf{q}\cdot\mathbf{y}}\sqrt{\frac{1}{4\omega(\mathbf{p})\omega(\mathbf{q})}}\times \nonumber\\
+&\hspace{6.7cm}\times (a^\dag_\mathbf{q}a_\mathbf{p}+L^d\delta_{\mathbf{p},\mathbf{q}})\ket{\mathrm{vac}(0)} = \nonumber\\
+&\hspace{1.6cm}= a^{2d}|\eta(\psi)|^2\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*\psi(\mathbf{y})\frac{1}{L^d}\sum_{\mathbf{p}\in\Gamma}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{1}{2\omega(\mathbf{p})}\ket{\mathrm{vac}(0)} = \nonumber\\
+&\hspace{1.6cm}= a^{2d}|\eta(\psi)|^2\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*G^{(0)}(\mathbf{x}-\mathbf{y})\psi(\mathbf{y})\ket{\mathrm{vac}(0)},
+\end{align}
+where we have used the canonical commutation relations. We therefore deduce
+\begin{equation}
+\eta(\psi) = \frac{1}{a^d}\Bigg[\sum_{\mathbf{x},\mathbf{y}\in\Omega}\psi(\mathbf{x})^*G^{(0)}(\mathbf{x}-\mathbf{y})\psi(\mathbf{y})\Bigg]^{-\frac{1}{2}}.
+\end{equation}
+in particular, $\eta(\psi)$ can be chosen to be real. We now describe a useful technique for putting the quantum field in a given state $\ket{\psi}$. Introducing an ancillary qubit, consider the Hamiltonian
+\begin{equation}
+H_\psi = a^\dag_\psi\otimes\ket{1}\bra{0} + a_\psi\otimes\ket{0}\bra{1}.
+\end{equation}
+The subspace $M=\mathrm{Span}\big\langle\ket{\mathrm{vac}(0)}\ket{0},\ket{\psi}\ket{1}\big\rangle$ is easily seen to be invariant,
+\begin{align}
+&H_\psi\ket{\mathrm{vac}(0)}\ket{0} = a^\dag_\psi\ket{\mathrm{vac}(0)}\otimes\ket{1}\langle0|0\rangle = \ket{\psi}\ket{1}, \\
+&H_\psi\ket{\psi}\ket{1} = a_\psi a^\dag_\psi\ket{\mathrm{vac}(0)}\otimes\langle1|1\rangle\ket{0}	 = \ket{\mathrm{vac}(0)}\ket{0}.
+\end{align}
+We can exploit this fact by observing that
+\begin{align}
+&e^{-iH_\psi\frac{\pi}{2}}\ket{\mathrm{vac}(0)}\ket{0} = \sum_{n=0}^\infty\frac{(-1)^n}{n!}\bigg(\frac{i\pi}{2}\bigg)^nH_\psi^n\ket{\mathrm{vac}(0)}\ket{0} = \nonumber\\
+&\sum_{n=0}^\infty\bigg[\frac{(-1)^n}{(2n)!}\bigg(\frac{\pi}{2}\bigg)^{2n}H_\psi^{2n}\ket{\mathrm{vac}(0)}\ket{0} + \nonumber\\
+&\hspace{5cm}-i\frac{(-1)^n}{(2n+1)!}\bigg(\frac{\pi}{2}\bigg)^{2n+1}H_\psi^{2n+1}\ket{\mathrm{vac}(0)}\ket{0}\bigg] = \nonumber\\
+&\sum_{n=0}^\infty\bigg[\frac{(-1)^n}{(2n)!}\bigg(\frac{\pi}{2}\bigg)^{2n}\ket{\mathrm{vac}(0)}\ket{0} -i\frac{(-1)^n}{(2n+1)!}\bigg(\frac{\pi}{2}\bigg)^{2n+1}\ket{\psi}\ket{1}\bigg] = \nonumber\\
+&\hspace{2.9cm}=\cos(\frac{\pi}{2})\ket{\mathrm{vac}(0)}\ket{0}
+-i\sin(\frac{\pi}{2})\ket{\psi}\ket{1} = -i\ket{\psi}\ket{1},
+\end{align}
+that is, by acting on the free vacuum with $H_\psi$ for a time $t=\pi/2$, we obtain the desired state $\ket{\psi}$ up to an immaterial phase, and the ancillary qubit can then be discarded.
+In terms of field operators, the Hamiltonian $H_\psi$ can be written as
+\begin{align}
+&H_\psi = a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\big(\psi(\mathbf{x})\,a^\dag_\mathbf{x}\otimes\ket{1}\bra{0} + \psi(\mathbf{x})^*a_\mathbf{x}\otimes\ket{0}\bra{1}\big) = \nonumber\\
+&a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\Bigg[\bigg(\frac{1}{2}\psi(\mathbf{x})\phi(\mathbf{x}) - ia^d\psi(\mathbf{x})\sum_{\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\pi(\mathbf{y})\bigg)\otimes\ket{1}\bra{0} + \nonumber\\
+&\hspace{2cm}+\bigg(\frac{1}{2}\psi(\mathbf{x})^*\phi(\mathbf{x}) + ia^d \psi(\mathbf{x})^*\sum_{\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\pi(\mathbf{y})\bigg)\otimes\ket{0}\bra{1}\Bigg] = \nonumber\\
+&\hspace{.5cm}= H_{\psi,\phi} + H_{\psi,\pi},
+\end{align}
+where
+\begin{equation}
+H_{\psi,\phi} = a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\bigg(\frac{1}{2}\psi(\mathbf{x})\phi(\mathbf{x})\otimes\ket{1}\bra{0} + \frac{1}{2}\psi(\mathbf{x})^*\phi(\mathbf{x})\otimes\ket{0}\bra{1}\bigg)
+\end{equation}
+is the $\phi$-sector of $H_\psi$, and
+\begin{equation}
+H_{\psi,\pi} = -ia^{2d}\eta(\psi)\sum_{\mathbf{x},\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\bigg(\psi(\mathbf{x})\pi(\mathbf{y})\otimes\ket{1}\bra{0} - \psi(\mathbf{x})^*\pi(\mathbf{y})\otimes\ket{0}\bra{1}\bigg)
+\end{equation}
+is the $\pi$-sector $H_\psi$. With the help of the Suzuki-Trotter formula, we can study the time evolution under these two sectors separately. 
+
+Let a general quantum state of the ancillary qubit be denoted by
+\begin{equation}
+\ket{\alpha} = \alpha_0\ket{0} + \alpha_1\ket{1},
+\end{equation} 
+and observe that
+\begin{align}
+&H_{\psi,\phi}\ket{\phi_1,\dots,\phi_N}\ket{\alpha} = a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\bigg(\frac{1}{2}\psi(\mathbf{x})\phi(\mathbf{x})\ket{\phi_1,\dots,\phi_N}\otimes\ket{1}\langle 0|\alpha\rangle + \nonumber\\
+&\hspace{5.5cm}+ \frac{1}{2}\psi(\mathbf{x})^*\phi(\mathbf{x})\ket{\phi_1,\dots,\phi_N}\otimes\ket{0}\langle 1|\alpha\rangle\bigg) = \nonumber\\
+&a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\bigg(\frac{1}{2}\psi(\mathbf{x})\phi_{\iota(\mathbf{x})}\ket{\phi_1,\dots,\phi_N}\otimes\alpha_0\ket{1} + \nonumber\\
+&\hspace{5.8cm}+ \frac{1}{2}\psi(\mathbf{x})^*\phi_{\iota(\mathbf{x})}\ket{\phi_1,\dots,\phi_N}\otimes\alpha_1\ket{0}\bigg) = \nonumber\\
+&\hspace{3.2cm}=\ket{\phi_1,\dots,\phi_N}\otimes(\gamma_\psi\alpha_0\ket{1} + \gamma_\psi^*\alpha_1\ket{0}),
+\label{eq:wave_prep_phi}
+\end{align}
+where we have defined
+\begin{equation}
+\gamma_\psi = \gamma_\psi(\phi_1,\dots,\phi_N) = \frac{1}{2}a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\psi(\mathbf{x})\phi_{\iota(\mathbf{x})}.
+\end{equation}
+Moreover,
+\begin{align}
+&H^2_{\psi,\phi}\ket{\phi_1,\dots,\phi_N}\ket{\alpha} = H_{\psi,\phi}\ket{\phi_1,\dots,\phi_N}\otimes(\gamma_\psi^*\alpha_1\ket{0}+\gamma_\psi\alpha_0\ket{1}) = \nonumber\\
+&a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\bigg(\frac{1}{2}\psi(\mathbf{x})\phi(\mathbf{x})\ket{\phi_1,\dots,\phi_N}\otimes\ket{1}\bra{0}(\gamma_\psi^*\alpha_1\ket{0}+\gamma_\psi\alpha_0\ket{1}) + \nonumber\\
+&\hspace{2.6cm}+ \frac{1}{2}\psi(\mathbf{x})^*\phi(\mathbf{x})\ket{\phi_1,\dots,\phi_N}\otimes\ket{0}\bra{1}(\gamma_\psi^*\alpha_1\ket{0}+\gamma_\psi\alpha_0\ket{1})\bigg) = \nonumber\\
+&a^d\eta(\psi)\sum_{\mathbf{x}\in\Omega}\bigg(\frac{1}{2}\psi(\mathbf{x})\phi_{\iota(\mathbf{x})}\ket{\phi_1,\dots,\phi_N}\otimes\gamma_\psi^*\alpha_1\ket{1} + \nonumber\\
+&\hspace{5.4cm}+ \frac{1}{2}\psi(\mathbf{x})^*\phi_{\iota(\mathbf{x})}\ket{\phi_1,\dots,\phi_N}\otimes\gamma_\psi\alpha_0\ket{0}\bigg) = \nonumber\\
+&\gamma_\psi\ket{\phi_1,\dots,\phi_N}\otimes\gamma_\psi^*\alpha_1\ket{1} + \gamma_\psi^*\ket{\phi_1,\dots,\phi_N}\otimes\gamma_\psi\alpha_0\ket{0} = |\gamma_\psi|^2\ket{\phi_1,\dots,\phi_N}\ket{\alpha}.
+\label{eq:wave_prep_phi_sqrd}
+\end{align}
+Thus, using Eq. \eqref{eq:wave_prep_phi} and \eqref{eq:wave_prep_phi_sqrd}, we can calculate the time evolution under the $\phi$-sector of $H_{\psi,\phi}$
+\begin{align}
+&e^{-iH_{\psi,\phi}t}\ket{\phi_1,\dots,\phi_N}\ket{\alpha} = \sum_{n=0}^\infty \frac{(-it)^n}{n!}H_{\psi,\phi}^n \ket{\phi_1,\dots,\phi_N}\ket{\alpha} = \nonumber\\
+&\sum_{n=0}^\infty\bigg[\frac{(-1)^nt^{2n}}{(2n)!}H_{\psi,\phi}^{2n} \ket{\phi_1,\dots,\phi_N}\ket{\alpha} + \nonumber\\
+&\hspace{4.5cm}-i\frac{(-1)^nt^{2n+1}}{(2n+1)!} H_{\psi,\phi}^{2n+1} \ket{\phi_1,\dots,\phi_N}\ket{\alpha}\bigg] = \nonumber\\
+&\sum_{n=0}^\infty\bigg[\frac{(-1)^nt^{2n}}{(2n)!}|\gamma_\psi|^{2n} \ket{\phi_1,\dots,\phi_N}\ket{\alpha} + \nonumber\\
+&\hspace{3.8cm}-i\frac{(-1)^nt^{2n+1}}{(2n+1)!}|\gamma_\psi|^{2n} H_{\psi,\phi}\ket{\phi_1,\dots,\phi_N}\ket{\alpha}\bigg] = \nonumber\\
+&\sum_{n=0}^\infty\bigg[\frac{(-1)^nt^{2n}}{(2n)!}|\gamma_\psi|^{2n} \ket{\phi_1,\dots,\phi_N}\ket{\alpha} + \nonumber\\
+&\hspace{1.5cm}-i\frac{(-1)^nt^{2n+1}}{(2n+1)!}|\gamma_\psi|^{2n} \ket{\phi_1,\dots,\phi_N}\otimes(\gamma_\psi^*\alpha_1\ket{0} + \gamma_\psi\alpha_0\ket{1})\bigg] = \nonumber\\
+&\bigg[\cos(|\gamma_\psi|t)\ket{\phi_1,\dots,\phi_N}\ket{\alpha} + \nonumber\\
+&\hspace{3cm}-i\sin(|\gamma_\psi|t)\ket{\phi_1,\dots,\phi_N}\otimes\frac{\gamma_\psi^*\alpha_1\ket{0} + \gamma_\psi\alpha_0\ket{1}}{|\gamma_\psi|}\bigg] = \nonumber\\
+&\ket{\phi_1,\dots,\phi_N}\otimes \big(\cos(|\gamma_\psi|t)\alpha_0 -i\sin(|\gamma_\psi|t)\alpha_1e^{-i\arg(\gamma_\psi)})\ket{0} + \nonumber\\
+&\hspace{3.8cm}+ \cos(|\gamma_\psi|t)\alpha_1 -i\sin(|\gamma_\psi|t)\alpha_0e^{i\arg(\gamma_\psi)})\ket{1}\big) = \nonumber\\
+&\ket{\phi_1,\dots,\phi_N}\otimes R_Z\Big(-\frac{\arg(\gamma_\psi)}{2}\Big)R_X(|\gamma_\psi|t)R_Z\Big(\frac{\arg(\gamma_\psi)}{2}\Big)\ket{\alpha}.
+\label{eq:prop_phi}
+\end{align}
+
+Similarly, for the $\pi$-sector of $H_\psi$, we have
+\begin{align}
+&H_{\psi,\pi}\ket{\pi_1,\dots,\pi_N}\ket{\alpha} = \nonumber\\
+&-ia^{2d}\eta(\psi)\sum_{\mathbf{x},\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\bigg(\psi(\mathbf{x})\pi(\mathbf{y})\ket{\pi_1,\dots,\pi_N}\otimes\ket{1}\langle 0|\alpha\rangle + \nonumber\\
+&\hspace{5.5cm}- \psi(\mathbf{x})^*\pi(\mathbf{y})\ket{\pi_1,\dots,\pi_N}\otimes\ket{0}\langle 1|\alpha\rangle\bigg) = \nonumber\\
+&-ia^{2d}\eta(\psi)\sum_{\mathbf{x}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\bigg(\psi(\mathbf{x})\pi_{\iota(\mathbf{y})}\ket{\pi_1,\dots,\pi_N}\otimes\alpha_0\ket{1} + \nonumber\\
+&\hspace{5.8cm}- \psi(\mathbf{x})^*\pi_{\iota(\mathbf{y})}\ket{\pi_1,\dots,\pi_N}\otimes\alpha_1\ket{0}\bigg) = \nonumber\\
+&\hspace{3.2cm}=\ket{\pi_1,\dots,\pi_N}\otimes(\tau_\psi\alpha_0\ket{1} + \tau_\psi^*\alpha_1\ket{0}),
+\label{eq:wave_prep_pi}
+\end{align}
+where we have set
+\begin{equation}
+\tau_\psi = \tau_\psi(\pi_1,\dots,\pi_N) = \frac{a^{2d}}{i}\eta(\psi)\sum_{\mathbf{x}\in\Omega}\psi(\mathbf{x})G^{(0)}(\mathbf{x}-\mathbf{y})\pi_{\iota(\mathbf{y})}.
+\end{equation}
+It follows that
+\begin{align}
+&H^2_{\psi,\pi}\ket{\pi_1,\dots,\pi_N}\ket{\alpha} = H_{\psi,\pi}\ket{\pi_1,\dots,\pi_N}\otimes(\tau_\psi\alpha_0\ket{1} + \tau_\psi^*\alpha_1\ket{0}) = -ia^{2d}\eta(\psi)\times\nonumber\\
+&\times\sum_{\mathbf{x},\mathbf{y}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\bigg(\psi(\mathbf{x})\pi(\mathbf{y})\ket{\pi_1,\dots,\pi_N}\otimes\ket{1}\bra{0}(\tau_\psi\alpha_0\ket{1} + \tau_\psi^*\alpha_1\ket{0}) + \nonumber\\
+&\hspace{2.8cm}- \psi(\mathbf{x})^*\pi(\mathbf{y})\ket{\pi_1,\dots,\pi_N}\otimes\ket{0}\bra{1}(\tau_\psi\alpha_0\ket{1} + \tau_\psi^*\alpha_1\ket{0})\bigg) = \nonumber\\
+&-ia^{2d}\eta(\psi)\sum_{\mathbf{x}\in\Omega}G^{(0)}(\mathbf{x}-\mathbf{y})\bigg(\psi(\mathbf{x})\pi_{\iota(\mathbf{y})}\ket{\pi_1,\dots,\pi_N}\otimes\tau_\psi^*\alpha_1\ket{1} + \nonumber\\
+&\hspace{5.6cm}- \psi(\mathbf{x})^*\pi_{\iota(\mathbf{y})}\ket{\pi_1,\dots,\pi_N}\otimes\tau_\psi\alpha_0\ket{0}\bigg) = \nonumber\\
+&\tau_\psi\ket{\pi_1,\dots,\pi_N}\otimes\tau_\psi^*\alpha_1\ket{1} + \tau_\psi^*\ket{\pi_1,\dots,\pi_N}\otimes\tau_\psi\alpha_0\ket{0} = |\tau_\psi|^2\ket{\pi_1,\dots,\pi_N}\ket{\alpha}.
+\label{eq:wave_prep_pi_sqrd}
+\end{align}
+and therefore, repeating the analogous calculation for the $\phi$-sector, we find
+\begin{align}
+e^{-iH_{\psi,\pi}t}&\ket{\pi_1,\dots,\pi_N}\ket{\alpha} = \nonumber\\
+&\ket{\pi_1,\dots,\pi_N}\otimes R_Z\Big(-\frac{\arg(\tau_\psi)}{2}\Big)R_X(|\tau_\psi|t)R_Z\Big(\frac{\arg(\tau_\psi)}{2}\Big)\ket{\alpha}.
+\label{eq:prop_pi}
+\end{align}
+By the Suzuki-Trotter formula, the wavepacket preparation operator $e^{-iH_\psi\frac{\pi}{2}}$ can be approximated by repeatedly alternating Eq. \eqref{eq:prop_phi}, an $N$-dimensional Fourier transform, Eq. \eqref{eq:prop_pi} and an inverse $N$-dimensional Fourier transform, until the required precision is met.
+
+\section{Momentum Measurement}
+By the canonical commutation relations, it follows that the occupation number operators
+\begin{equation}
+N_\mathbf{p} = \frac{1}{L^d}a^\dag_\mathbf{p}a_\mathbf{p},
+\end{equation}
+have integer eigenvalues $n_\mathbf{p}=0,1,2,3,\dots$ for every $\mathbf{p}\in\Gamma$. In terms of field operators, these can be decomposed as
+\begin{align}
+\frac{1}{L^d}a^\dag_\mathbf{p}a_\mathbf{p} &= \frac{a^{2d}}{L^d}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\sqrt{\frac{\omega(\mathbf{p})}{2}}\phi(\mathbf{x}) - i\sqrt{\frac{1}{2\omega(\mathbf{p})}}\pi(\mathbf{x})\bigg]\bigg[\sqrt{\frac{\omega(\mathbf{p})}{2}}\phi(\mathbf{y}) + i\sqrt{\frac{1}{2\omega(\mathbf{p})}}\pi(\mathbf{y})\bigg] = \nonumber\\
+&=\frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\frac{\omega(\mathbf{p})}{2}\phi(\mathbf{x})\phi(\mathbf{y}) + \frac{i}{2}\phi(\mathbf{x})\pi(\mathbf{y}) - \frac{i}{2}\pi(\mathbf{x})\phi(\mathbf{y}) + \frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y})\bigg] = \nonumber\\
+&= \Phi_\mathbf{p} + \chi_\mathbf{p} + \Pi_\mathbf{p},
+\end{align}
+where
+\begin{equation}
+\Phi_\mathbf{p} = \frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{\omega(\mathbf{p})}{2}\phi(\mathbf{x})\phi(\mathbf{y}),
+\label{eq:meas_phi}
+\end{equation}
+\begin{equation}
+\Pi_\mathbf{p} = \frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y}),
+\label{eq:meas_pi}
+\end{equation}
+\begin{equation}
+\chi_\mathbf{p} = \frac{ia^d}{2N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\big(\phi(\mathbf{x})\pi(\mathbf{y})-\pi(\mathbf{x})\phi(\mathbf{y})\big).
+\end{equation}
+Each of the operators above is self-adjoint. For example, the eigenvalue in the right-hand side of the equation
+\begin{equation}
+\Phi_\mathbf{p}\ket{\phi_1,\dots,\phi_N} = \frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\frac{\omega(\mathbf{p})}{2}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})}\ket{\phi_1,\dots,\phi_N},
+\end{equation}
+is a real quantity, as can be seen by observing that
+\begin{align}
+&\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} = \nonumber\\
+&\frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} + \frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} = \nonumber\\
+&\frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} + \frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot(\mathbf{y}-\mathbf{x})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} = \nonumber\\
+&\frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} + \frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\phi_{\iota(\mathbf{y})}\phi_{\iota(\mathbf{x})} = \nonumber\\
+&\frac{1}{2}\sum_{\mathbf{x},\mathbf{y}\in\Omega}(e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}+e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})})\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})} = \sum_{\mathbf{x},\mathbf{y}\in\Omega}\cos(\mathbf{p}\cdot(\mathbf{x}-\mathbf{y}))\phi_{\iota(\mathbf{x})}\phi_{\iota(\mathbf{y})}.
+\end{align}
+Due to the mixing of $\phi(\mathbf{x})$ and $\pi(\mathbf{x})$, the operator $\chi_\mathbf{p}$ does not lend itself well to our simulation. Alternatively, we can consider the observable
+\begin{align}
+&\widetilde{N}_\mathbf{p} = \frac{1}{L^d}(a^\dag_\mathbf{p}a_\mathbf{p} + a^\dag_{-\mathbf{p}}a_{-\mathbf{p}}) = \frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\frac{\omega(\mathbf{p})}{2}\phi(\mathbf{x})\phi(\mathbf{y}) + \frac{i}{2}\phi(\mathbf{x})\pi(\mathbf{y}) - \frac{i}{2}\pi(\mathbf{x})\phi(\mathbf{y}) + \frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y})\bigg] + \nonumber\\
+&\frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{-i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\frac{\omega(-\mathbf{p})}{2}\phi(\mathbf{x})\phi(\mathbf{y}) + \frac{i}{2}\phi(\mathbf{x})\pi(\mathbf{y}) - \frac{i}{2}\pi(\mathbf{x})\phi(\mathbf{y}) + \frac{1}{2\omega(-\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y})\bigg] = \nonumber\\
+&\frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\frac{\omega(\mathbf{p})}{2}\phi(\mathbf{x})\phi(\mathbf{y}) + \frac{i}{2}\phi(\mathbf{x})\pi(\mathbf{y}) - \frac{i}{2}\pi(\mathbf{x})\phi(\mathbf{y}) + \frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y})\bigg] + \nonumber\\
+&\frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\times\nonumber\\
+&\quad\times\bigg[\frac{\omega(\mathbf{p})}{2}\phi(\mathbf{y})\phi(\mathbf{x}) + \frac{i}{2}\phi(\mathbf{y})\pi(\mathbf{x}) - \frac{i}{2}\pi(\mathbf{y})\phi(\mathbf{x}) + \frac{1}{2\omega(\mathbf{p})}\pi(\mathbf{y})\pi(\mathbf{x})\bigg] = \nonumber\\
+&\frac{a^d}{N}\sum_{\mathbf{x},\mathbf{y}\in\Omega}e^{i\mathbf{p}\cdot(\mathbf{x}-\mathbf{y})}\bigg[\omega(\mathbf{p})\phi(\mathbf{x})\phi(\mathbf{y}) - \frac{1}{2a^d}(\delta_{\mathbf{y},\mathbf{x}}+\delta_{\mathbf{x},\mathbf{y}})\,\mathbb{I} + \frac{1}{\omega(\mathbf{p})}\pi(\mathbf{x})\pi(\mathbf{y})\bigg] = \nonumber\\
+&\hspace{3cm}=2\Phi_\mathbf{p} - \mathbb{I} + 2\Pi_\mathbf{p},
+\end{align}
+which is free from such terms and can be easily implemented via the Trotter formula. In particular, consider the unitary operator
+\begin{equation}
+U_\mathbf{p} = e^{\frac{2\pi i}{2^m}(\widetilde{N}_\mathbf{p}+\mathbb{I})} = e^{\frac{\pi i}{2^m}(\Phi_\mathbf{p}+\Pi_\mathbf{p})}.
+\end{equation}
+Its eigenvalues are the $2^m$-th roots of unity $\xi_\mathbf{p} = e^{\frac{2\pi i}{2^m}(\widetilde{n}_\mathbf{p}+1)}$,  where $\widetilde{n}_\mathbf{p} = n_\mathbf{p} + n_\mathbf{-p}$ is the sum of the of number of particles with momentum $\mathbf{p}$ and the number of particles with momentum $\mathbf{-p}$, and it can be realised as the infinite product
+\begin{equation}
+U_\mathbf{p} = \lim_{k\rightarrow+\infty}(e^{\frac{\pi i}{2^mk}\Phi_\mathbf{p}}e^{\frac{\pi i}{2^mk}\Pi_\mathbf{p}})^k.
+\end{equation}
+
+\chapter{Quantum Simulation}
+\section{Qubit Representation and Algorithm Outline}
+In order to simulate a quantum field theory, we must represent the field with qubits in some way. It is of course impossible to construct a completely faithful representation with only finitely many qubits, Since the underlying Hilbert space of the field is infinite-dimensional. 
+Naturally, we choose our available qubits to represent the field eigenstates $\ket{\phi_1,\dots,\phi_N}$. We allocate an $m$-qubit register for each lattice site, which is to store the value of the spectral variable $\phi_i$ corresponding to the $i$-th lattice site. The range of each $\phi_i$ is cut off to a bounded interval $[-\phi_\mathrm{max},\phi_\mathrm{max}]$ and discretised by increments of
+\begin{equation}
+\delta_\phi = \frac{\phi_\mathrm{max}}{2^{m-1}}.
+\end{equation}
+Therefore, at each lattice site, the $m$-qubit register $\ket{k}$ shall represent the field eigenstate $\ket{-\phi_\mathrm{max}+k\delta_\phi}$. 
+
+Before we describe the main algorithm, it is worth describing the quantum analog of the discrete Fourier transform, called quantum Fourier transform. The role of this circuit is not limited to transforming back and forth between $\ket{\phi_1,\dots,\phi_N}$ and $\ket{\pi_1,\dots,\pi_N}$, in fact this subroutine is really at the heart of the entire simulation. Let $\ket{\chi}$ be an $m$-qubit state, and let its expansion in the computational basis be denoted as
+\begin{equation}
+\ket{\chi} = \sum_{k=0}^{2^m-1}\chi_k\ket{k}.
+\end{equation}
+The quantum Fourier transform is the $m$-qubit unitary gate defined by
+\begin{align}
+   \mathcal{F}_m: \ket{\chi} \longmapsto \sum_{k=0}^{2^m-1}\widehat{\chi}_k\ket{k},
+\end{align}
+where the new expansion coefficients are equal to
+\begin{equation}
+    \widehat{\chi}_k = \frac{1}{\sqrt{2^m}}\sum_{h=0}^{2^m-1} e^{-\frac{2\pi i}{2^m}k\cdot h}\,\chi_h.
+\end{equation}
+The inverse transformation is similarly defined as
+\begin{align}
+   \mathcal{F}^{-1}_m: \ket{\chi} \longmapsto \sum_{k=0}^{2^m-1}\check{\chi}_k\ket{k},
+\end{align}
+where the inverse transformed coefficients are simply
+\begin{equation}
+    \check{\chi}_k = \frac{1}{\sqrt{2^m}}\sum_{h=0}^{2^m-1} e^{\frac{2\pi i}{2^m}k\cdot h}\,\chi_h.
+\end{equation}
+The quantum Fourier transform can be efficiently implemented with a series of Hadamard and controlled-phase gates, see for example \cite{mosca98}. 
+
+We now turn to the main algorithm. It is comprised of four consecutive stages, which we outline here and discuss in more detail in the following sections.
+\begin{enumerate}
+\item \textit{Creation of the free vacuum}.
+
+The first subcircuit takes the qubit registers from the initial $\ket{0,\dots,0}$ state to the discretised version of $\ket{\mathrm{vac}(0)}$.
+\item \textit{Wavepacket preparation}.
+
+Using an ancillary qubit, for each possible value of $\ket{\phi_1,\dots,\phi_N}$ we apply the operator \eqref{eq:prop_phi} for a time $t=\pi/2s$, followed by a discretised version of the Fourier transform, then we apply the operator \eqref{eq:prop_pi} $t=\pi/2s$, followed by an inverse Fourier transform, and repeat these steps $s$ times to reach the desired precision. The ancillary qubit can now be discarded. 
+
+\item \textit{Time evolution}.
+
+Allocating an ancillary register, we make use of the phase-kickback mechanism to simulate the exponential $e^{-iH_\phi \frac{t}{s}}$ for a time $t$ long enough for scattering to occur. We apply a discretised Fourier transform, use the phase-kickback mechanism again to simulate the exponential $e^{-iH_\pi \frac{t}{s}}$, and then apply an inverse Fourier transform. We repeat these steps $s$ times to meet the required precision.
+
+\item \textit{Momentum measurement}.
+
+Allocating a new ancillary register, we use the quantum phase estimation algorithm to perform a measurement in the basis of $U_\mathbf{p}$. This is equivalent to measuring $\widetilde{N}_\mathbf{p} +1 \;(\mathrm{mod}\;2^m)$. The various powers of $U_\mathbf{p}$ are implemented using the same combination of Trotterisation and phase-kickback used in step 3. 
+\end{enumerate} 
+
+\section{Creation of the Free Vacuum}
+The very first step in our simulation is the represention of the free vacuum of Eq. \eqref{eq:vacuum_wavefunction}, which we will do with the methods outlined in Ref. \cite{kitaev08}. It is useful to first understand how an infinite-dimensional state characterised by a single-variate Gaussian wavefunction of the form
+\begin{equation}
+\ket{\mu,\sigma} = \frac{1}{\sqrt[4]{\pi\sigma^2}}\int_{-\infty}^{+\infty} e^{-\frac{(\phi-\mu)^2}{2\sigma^2}}\ket{\phi}\dd{\phi},
+\label{eq:1-dim_gaussian}
+\end{equation}
+is represented with an $m$-qubit register. Consider the discretised probability density distribution
+\begin{equation}
+\varphi_{\mu,\sigma}(n) = \frac{1}{\sqrt{\mathcal{N}(\mu,\sigma)}}\,e^{-\frac{(n-\mu)^2}{2\sigma^2}},
+\end{equation}
+where the normalisation function
+\begin{equation}
+\mathcal{N}(\mu,\sigma) = \sum_{n=-\infty}^{+\infty}e^{-\frac{(n-\mu)^2}{\sigma^2}},
+\label{eq:gaussian_norm_func}
+\end{equation}
+has been introduced so that
+\begin{equation}
+\sum_{n=-\infty}^{+\infty}\varphi_{\mu,\sigma}(n)^2 = 1.
+\end{equation}
+We now define the amplitude functions
+\begin{equation}
+\xi_{\mu,\sigma,m}(k) = \sqrt{\frac{1}{\mathcal{N}(\mu,\sigma)}\sum_{n=-\infty}^{+\infty}\exp(-\frac{(k+2^mn-\mu)^2}{\sigma^2})}.
+\label{eq:amplitude_func_def}
+\end{equation}
+Notice the sum in Eq. \eqref{eq:amplitude_func_def} extends over the whole residue class of $k$ modulo $2^m$, i.e. over all numbers which differ from $k$ by an integer multiple of $2^m$. This mean that
+\begin{align}
+&\sum_{k=0}^{2^m-1}\xi_{\mu,\sigma,m}(k)^2 = \sum_{k=0}^{2^m-1}\sum_{n=-\infty}^{+\infty}\frac{1}{\mathcal{N}(\mu,\sigma)}\exp(-\frac{(k+2^mn-\mu)^2}{\sigma^2}) = \nonumber\\
+&\sum_{k=0}^{2^m-1}\sum_{n=-\infty}^{+\infty}\varphi_{\mu,\sigma}(k+2^mn)^2 = \sum_{k=0}^{2^m-1}\sum_{h\equiv k(\mathrm{mod}\,2^m)}\varphi_{\mu,\sigma}(h)^2 = \sum_{h=-\infty}^{+\infty}\varphi_{\mu,\sigma}(h)^2  = 1.
+\end{align}
+Hence, denoting by $\{\ket{k}:\,k=0,\dots,2^m-1\}$ the computational basis,
+\begin{equation}
+\ket{\xi_{\mu,\sigma,m}} = \sum_{k=0}^{2^m-1}\xi_{\mu,\sigma,m}(k)\ket{k}
+\label{eq:discr_gaussian}
+\end{equation}
+is a well-defined quantum state. In Eq. \eqref{eq:discr_gaussian}, the computational state $\ket{k}$ represents the field eigenvector $\ket{\phi = k_22^{m-1}+k_32^{m-2}\dots+k_m-k_12^m}$, where $[k_1\dots k_m]$ is the binary representation of $k$. The crucial observation to make for the preparation of the state \eqref{eq:discr_gaussian} is that, for every $m\in\N$, 
+\begin{equation}
+\ket{\xi_{\mu,\sigma,m+1}} = \ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m}}\otimes\cos(\alpha)\ket{0} + \ket{\xi_{\frac{\mu-1}{2},\frac{\sigma}{2},m}}\otimes\sin(\alpha)\ket{1},
+\label{eq:recursive_gaussian}
+\end{equation}
+where
+\begin{equation}
+\alpha = \arccos\Bigg(\sqrt{\frac{\mathcal{N}(\frac{\mu}{2}\,\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}}\Bigg).
+\label{eq:rotation_angle}
+\end{equation}
+Indeed, let us preliminarly calculate
+\begin{align}
+\sin(\alpha) &= \sqrt{1-\frac{\mathcal{N}(\frac{\mu}{2}\,\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}} = \sqrt{\frac{\mathcal{N}(\mu,\sigma)-\mathcal{N}(\frac{\mu}{2}\,\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}} = \nonumber\\
+&=\frac{1}{\sqrt{\mathcal{N}(\mu,\sigma)}}\sqrt{\sum_{n=-\infty}^{+\infty}e^{-\frac{(n-\mu)^2}{\sigma^2}} - \sum_{n=-\infty}^{+\infty}e^{-\frac{(2n-\mu)^2}{\sigma^2}}} = \nonumber\\
+&=\frac{1}{\sqrt{\mathcal{N}(\mu,\sigma)}}\sqrt{\sum_{n=-\infty}^{+\infty}e^{-\frac{(2n+1-\mu)^2}{\sigma^2}}} = \sqrt{\frac{\mathcal{N}(\frac{\mu-1}{2},\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}}.
+\label{eq:sine_alpha}
+\end{align}
+Then, substituting Eq. \eqref{eq:discr_gaussian}, \eqref{eq:amplitude_func_def}, \eqref{eq:rotation_angle} and \eqref{eq:sine_alpha} into Eq. \eqref{eq:recursive_gaussian},
+\begin{align}
+&\ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m}}\otimes\cos(\alpha)\ket{0} + \ket{\xi_{\frac{\mu-1}{2},\frac{\sigma}{2},m}}\otimes\sin(\alpha)\ket{1} = \nonumber\\
+&\sum_{k=0}^{2^m-1}\Big\{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m}(k)\cos(\alpha)\ket{k}\otimes\ket{0} + \xi_{\frac{\mu-1}{2},\frac{\sigma}{2},m}(k)\sin(\alpha)\ket{k}\otimes\ket{1}\Bigg\} = \nonumber\\
+&\sum_{k=0}^{2^m-1}\Bigg\{\sqrt{\frac{1}{\mathcal{N}(\frac{\mu}{2},\frac{\sigma}{2})}\sum_{n=-\infty}^{+\infty}e^{-\frac{(2k+2^{m+1}-\mu)^2}{\sigma^2}}} \sqrt{\frac{\mathcal{N}(\frac{\mu}{2}\,\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}}\ket{k}\otimes\ket{0} + \nonumber\\ 
+&+ \sqrt{\frac{1}{\mathcal{N}(\frac{\mu-1}{2},\frac{\sigma}{2})}\sum_{n=-\infty}^{+\infty}e^{-\frac{(2k+1+2^{m+1}-\mu)^2}{\sigma^2}}}\sqrt{\frac{\mathcal{N}(\frac{\mu-1}{2},\frac{\sigma}{2})}{\mathcal{N}(\mu,\sigma)}}\ket{k}\otimes\ket{1}\Bigg\} = \nonumber
+\end{align}
+
+\begin{align}
+&\frac{1}{\sqrt{\mathcal{N}(\mu,\sigma)}}\sum_{k=0}^{2^m-1}\Bigg\{\sqrt{\sum_{n=-\infty}^{+\infty}e^{-\frac{(2k+2^{m+1}-\mu)^2}{\sigma^2}}}\ket{k}\otimes\ket{0} + \nonumber\\ 
+&\hspace{4cm}+ \sqrt{\sum_{n=-\infty}^{+\infty}e^{-\frac{(2k+1+2^{m+1}-\mu)^2}{\sigma^2}}}\ket{k}\otimes\ket{1}\Bigg\} = \nonumber\\
+&\sum_{k=0}^{2^m-1}\Big\{\xi_{\mu,\sigma,m+1}(2k)\ket{k}\otimes\ket{0} + \xi_{\mu,\sigma,m+1}(2k+1)\ket{k}\otimes\ket{1}\Big\} = \nonumber\\
+&\sum_{k=0}^{2^m-1}\Big\{\xi_{\mu,\sigma,m+1}(2k)\ket{2k} + \xi_{\mu,\sigma,m+1}(2k+1)\ket{2k+1}\Big\} = \nonumber\\
+&\sum_{k=0}^{2^{m+1}-1}\xi_{\mu,\sigma,m+1}(k)\ket{k} = \ket{\xi_{\mu,\sigma,m+1}}, 
+\end{align}
+where we have used the fact that if $[k_1\dots k_m]$ is the binary representation of $k$, then $[k_1\dots k_m0] = 2k$, and $[k_1\dots k_m1] = 2k+1$. 
+
+Eq. \eqref{eq:recursive_gaussian} provides a recursive algorithm for the preparation of the state \eqref{eq:discr_gaussian}. Let us denote by $U_m(\mu,\sigma)$ an $m$-qubit unitary operator such that
+\begin{equation}
+U_m(\mu,\sigma)\ket{0}\dots\ket{0} = \ket{\xi_{\mu,\sigma,m}}.
+\end{equation}
+The operator can be realised with the following circuit.
+\begin{itemize}
+\item[(i)] Apply an $R_Y(\alpha)$ gate on the $m$-th (rightmost) qubit. This operation takes the register into the state
+\begin{equation}
+\ket{0}\dots\ket{0}\ket{0} \longmapsto \ket{0}\dots\ket{0}\otimes(\cos(\alpha)\ket{0}+\sin(\alpha)\ket{1}).
+\end{equation}
+\item[(ii)] Switch the logical value of the $m$-th qubit with an $X$ gate. This operation takes the register into the state
+\begin{equation}
+\ket{0}\dots\ket{0}\otimes(\cos(\alpha)\ket{0}+\sin(\alpha)\ket{1}) \longmapsto \ket{0}\dots\ket{0}\otimes(\cos(\alpha)\ket{1}+\sin(\alpha)\ket{0}).
+\end{equation}
+\item[(iii)] Apply a controlled-$U_{m-1}(\frac{\mu}{2},\frac{\sigma}{2})$ gate on the remaining qubits (i.e. qubits 0 through $m-1$). This operation takes the register into the state
+\begin{align}
+\ket{0}\dots\ket{0}\otimes(\cos(\alpha)\ket{0}+\sin(\alpha)\ket{1}) \longmapsto \ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m-1}}\otimes\cos(\alpha)\ket{1} + \nonumber\\
++\ket{0}\dots\ket{0}\otimes\sin(\alpha)\ket{0}.
+\end{align}
+\item[(iv)] Unswitch the logical value of the $m$-th qubit with an $X$ gate. This operation takes the register into the state
+\begin{align}
+\ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m-1}}\otimes\cos(\alpha)\ket{1} + 
+\ket{0}\dots\ket{0} &\otimes\sin(\alpha)\ket{0} \longmapsto \nonumber\\
+\ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m-1}}&\otimes\cos(\alpha)\ket{0} + \ket{0}\dots\ket{0}\otimes\sin(\alpha)\ket{1}.
+\end{align}
+\item[(v)] Apply a controlled-$U_{m-1}(\frac{\mu-1}{2},\frac{\sigma}{2})$ gate on qubits 0 through $m-1$. This operation takes the register into the state
+\begin{align}
+\ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m-1}}\otimes\cos(\alpha)\ket{0} + \ket{0}\dots\ket{0}&\otimes\sin(\alpha)\ket{1} \longmapsto \nonumber\\
+\ket{\xi_{\frac{\mu}{2},\frac{\sigma}{2},m-1}}\otimes\cos(\alpha)\ket{0} &+ \ket{\xi_{\frac{\mu-1}{2},\frac{\sigma}{2},m-1}}\otimes\sin(\alpha)\ket{1}.
+\end{align}
+\end{itemize}
+This circuit only uses a polynomial number of gates \cite{kitaev08}, but relies on a classical computation of the normalisaton function \eqref{eq:gaussian_norm_func}. This can be expressed analytically in closed form as
+\begin{align}
+\mathcal{N}(\mi,\sigma) &= \sum_{n=-\infty}^{+\infty}e^{-\frac{(n-\mu)^2}{\sigma^2}} = \sum_{n=-\infty}^{+\infty}e^{-\frac{n^2-2n\mu+\mu^2}{\sigma^2}} = \nonumber\\ 
+&=e^{-\frac{\mu^2}{\sigma^2}}\sum_{n=-\infty}^{+\infty}e^{-\frac{n^2}{\sigma^2}}e^{\frac{2n\mu}{\sigma^2}} = e^{-\frac{\mu^2}{\sigma^2}}\,\vartheta\Big(\frac{\mu}{i\pi\sigma^2};\frac{i}{\pi\sigma^2}\Big),
+\end{align}
+where $\vartheta$ denotes the Jacobi theta function. It follows that
+\begin{equation}
+\alpha = \mathrm{arccos}\Bigg(\sqrt{\frac{\vartheta(\frac{2\mu}{i\pi\sigma^2};\frac{4i}{\pi\sigma^2})}{\vartheta(\frac{\mu}{i\pi\sigma^2};\frac{i}{\pi\sigma^2})}}\Bigg),
+\end{equation}
+thus the efficiency of the algorithm is discharged on an efficient classical implementation of the Jacobi theta function.
+
+Equipped with an efficient method to represent state \eqref{eq:1-dim_gaussian}, we can now construct the quantum state
+\begin{align}
+\sqrt[4]{\frac{D_1}{\pi}}\int_{-\infty}^{+\infty}e^{-\frac{1}{2}D_1\phi_1^2}\ket{\phi_1}\dd{\phi_1}\otimes\dots\otimes\sqrt[4]{\frac{D_N}{\pi}}\int_{-\infty}^{+\infty}e^{-\frac{1}{2}D_N\phi_N^2}\ket{\phi_N}\dd{\phi_N} = \nonumber\\
+\sqrt[4]{\frac{D_1\dots D_N}{\pi^N}}\int e^{-\frac{1}{2}(D_1\phi_1^2+\dots+D_N\phi_N^2)}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi},
+\label{eq:separable_vacuum}
+\end{align}
+where $D_1,\dots,D_N$ are positive constants. Recall that $\Delta$, being a positive matrix, can be written in the Cholesky decomposition
+\begin{equation}
+\Delta = LDT^T,
+\end{equation}
+where $D$ is a diagonal matrix, and $L$ is an upper triangular matrix. Let $U_L$ be the unitary operator defined by
+\begin{equation}
+U_L\ket{\phi_1,\dots,\phi_N} = \ket{\varphi_1,\dots,\varphi_N},
+\end{equation}
+where $\ket{\varphi_1,\dots,\varphi_N}$ are transformed field eigenstates, i.e.
+\begin{equation}
+\phi(\mathbf{x})\ket{\varphi_1,\dots,\varphi_N} = \varphi_{\iota(\mathbf{x})}\ket{\varphi_1,\dots,\varphi_N},
+\end{equation}
+for every $\mathbf{x}\in\Omega$, with the new eigenvalues related to the old ones by 
+\begin{equation}
+\varphi_i = \sum_{k=1}^NL^{-1}_{ik}\phi_k,
+\end{equation}
+where $L^{-1}_{ik}$ are the matrix elements of $L^{-1}$.
+Then, applying the operator $U_L$ to the state \eqref{eq:separable_vacuum} yields
+\begin{align}
+&U_L\sqrt[4]{\frac{D_1\dots D_N}{\pi^N}}\int e^{-\frac{1}{2}(D_1\phi_1^2+\dots+D_N\phi_N^2)}\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi} = \nonumber\\
+&{\frac{D_1\dots D_N}{\pi^N}}\int e^{-\frac{1}{2}(D_1\phi_1^2+\dots+D_N\phi_N^2)}U_L\ket{\phi_1,\dots,\phi_N}\dd[N]{\phi} = \nonumber\\
+&\hspace{3cm}\sqrt[4]{\frac{\det(\Delta)}{\pi^N}}\int e^{-\frac{1}{2}(D_1\phi_1^2+\dots+D_N\phi_N^2)}\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\phi},
+\label{eq:roatated_gaussian}
+\end{align}
+hence, performing the change of integration variables
+\begin{equation}
+(\varphi_1,\dots,\varphi_N)^T = L^{-1}\cdot(\phi_1,\dots,\phi_N)^T,
+\end{equation}
+Eq. \eqref{eq:roatated_gaussian} becomes---possibly up to an irrelevant sign,
+\begin{align}
+\sqrt[4]{\frac{\det(\Delta)}{\pi^N}}\int\exp(-\frac{1}{2}\sum_{i,j=1}^N(D_1L_{1i}^TL_{1j}^T+\dots+D_NL_{Ni}^TL_{Nj}^T)\varphi_i\varphi_j)\times \nonumber\\
+\times\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\varphi} = \nonumber\\
+\sqrt[4]{\frac{\det(\Delta)}{\pi^N}}\int\exp(-\frac{1}{2}\sum_{i,j,k=1}^N L_{ik}D_kL_{kj}^T\varphi_i\varphi_j)\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\varphi} = \nonumber \\
+\sqrt[4]{\frac{\det(\Delta)}{\pi^N}}\int\exp(-\frac{1}{2}\sum_{i,j=1}^N \Delta_{ij}\varphi_i\varphi_j)\ket{\varphi_1,\dots,\varphi_N}\dd[N]{\varphi} = \ket{\mathrm{vac}(0)}.
+\end{align}
+The matrix elements of $D$ and $L$ can be calculated recursively with classical methods. In practice, since the state vectors $\ket{\phi_1,\dots,\phi_N}$ are represented by qubits, the continuous values $L^{-1}_{ik}\phi_k$ have to be approximated to the closest representable value.
+ 
+
+\section{Phase kickback mechanism}
+We now seek to simulate the operator exponentials appearing in the Trotterised formulae of stage 3 and 4. Together with the lattice qubits, we allocate an ancillary $m$-qubit register:
+\begin{equation}
+    \ket{\phi_1,\dots,\phi_N}\ket{x}.
+\end{equation}
+Let $U_P$ be a unitary operator defined by the equation
+\begin{equation}
+    U_\Theta\ket{\phi_1,\dots,\phi_N}\ket{x} = \ket{\phi_1,\dots,\phi_N}\ket{x + P(\phi_1,\dots,\phi_N)\;\mathrm{mod}\;2^m},
+    \label{eq:phi_phase_implementation}
+\end{equation}
+where $P(\phi_1,\dots,\phi_N)$ is an arbitrary integer function of the qubit registers $\phi_1,\dots,\phi_N$. As a preliminary step the ancilla is initialised in the state $x=1$, after which a quantum Fourier transform brings it into the state
+\begin{equation}
+\ket{F_m} = \mathcal{F}_m\ket{1} = \frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}e^{-\frac{2\pi i}{2^m}k}\ket{k}.
+\end{equation}
+Applying $U_P$ after this preliminary step yields
+\begin{align}
+&U_P\ket{\phi_1,\dots,\phi_N}\ket{F_m} = \frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}e^{\frac{2\pi i}{2^m}k}U_P\ket{\phi_1,\dots,\phi_N}\ket{k} = \nonumber\\
+&\frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}e^{\frac{2\pi i}{2^m}k}\ket{\phi_1,\dots,\phi_N}\ket{k + P(\phi_1,\dots,\phi_N)\;\mathrm{mod}\;2^m}.
+\end{align}
+Upon defining the new index
+\begin{equation}
+h = k + P(\phi_1,\dots,\phi_N)\;\mathrm{mod}\;2^m,
+\end{equation}
+and performing an inconsequential shift of summation, the output state can be written
+\begin{align}
+&\frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}e^{\frac{2\pi i}{2^m}k}\ket{\phi_1,\dots,\phi_N}\ket{k + P(\phi_1,\dots,\phi_N)\;\mathrm{mod}\;2^m} = \nonumber\\
+&\frac{1}{\sqrt{2^m}}\sum_{h=0}^{2^m-1}e^{\frac{2\pi i}{2^m}(h- P(\phi_1,\dots,\phi_N)}\ket{\phi_1,\dots,\phi_N}\ket{h} = \nonumber\\
+&\hspace{5cm}e^{-\frac{2\pi i}{2^m}P(\phi_1,\dots,\phi_N)}\ket{\phi_1,\dots,\phi_N}\ket{F_m},
+\end{align}
+thus `kicking' the phase $P(\phi_1,\dots,\phi_N)$ into the exponent. For simulating time evolution, we need to implement the operators $U_\Theta$ and $U_\Phi$ which calculate the phase functions \eqref{eq:phi_evolution} and \eqref{eq:pi_evolution}, respectively. For momentum measurement, we similarly need to implement the exponential of \eqref{eq:meas_phi} and \eqref{eq:meas_pi}. Since all four phase functions are polynomials, the corresponding operators can all be constructed with with the help of a quantum arithmetic unit. It is possible to construct such a unit using the quantum Fourier transform, see Ref. \cite{perez17}.
+
+\section{Quantum Phase Estimation}
+The quantum phase estimation algorithm can be used as a mean for performing an approximated measurement.
+Let $U$ be an $m$-qubit unitary operator. Any such operator admits an eigenbasis $\{\ket{\theta_k}:\,k=0,\dots,2^m-1\}$, whose eigenvalues can uniquely be written
+\begin{equation}
+U\ket{\theta_k} = e^{2\pi i\theta_k}\ket{\theta_k},
+\end{equation}
+with $0\le\theta_k<1$ for every $k$. We further assume that all eigenvalues are different from each other. An arbitrary $m$-qubit state $\ket{\chi}$ can be written in this base as
+\begin{equation}
+\ket{\chi} = \sum_{k=0}^{2^m-1}\chi_k\ket{\theta_k}.
+\end{equation}
+The phase estimation algorithm makes use of an auxiliary $m$-qubit register with all bits initialised in the logic 0 state:
+\begin{equation}
+\ket{0}\dots\ket{0}\otimes\ket{\chi}.
+\end{equation}
+A Hadamard gate is then applied to each qubit of the auxiliary register, bringing the overall memory to the state
+\begin{equation}
+H\ket{0}\dots H\ket{0}\otimes\ket{\chi} = \frac{1}{\sqrt{2^m}}(\ket{0}+\ket{1})\dots(\ket{0}+\ket{1})\otimes\ket{\chi}.
+\end{equation}
+We now apply a $U$ gate on $\ket{\chi}$ controlled by the $m$-th auxiliary qubit, bringing the memory to the state
+\begin{align}
+&\frac{1}{\sqrt{2^m}}(\ket{0}+\ket{1})^{\otimes(m-1)}\otimes(\ket{0}\ket{\chi} + \ket{1}U\ket{\chi}) = \nonumber\\
+&\frac{1}{\sqrt{2^m}}(\ket{0}+\ket{1})^{\otimes(m-1)}\otimes\Big(\ket{0}\ket{\chi} + \ket{1}\sum_{k=0}^{2^m-1}\chi_kU\ket{\theta_k}\Big) = \nonumber\\
+&\frac{1}{\sqrt{2^m}}(\ket{0}+\ket{1})^{\otimes(m-1)}\otimes\Big(\ket{0}\ket{\chi} + \ket{1}\sum_{k=0}^{2^m-1}\chi_k e^{2\pi i\theta_k}\ket{\theta_k}\Big) = \nonumber\\
+&\frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}\chi_k(\ket{0}+\ket{1})^{\otimes(m-1)}\otimes(\ket{0} + e^{2\pi i\theta_k}\ket{1})\otimes\ket{\theta_k}.
+\label{eq:phase_estim}
+\end{align}
+We then apply a $U^2$ gate on $\ket{\chi}$ controlled by the $(m-1)$-th auxiliary qubit, which takes the memory to the state
+\begin{equation}
+\frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}\chi_k(\ket{0}+\ket{1})^{\otimes(m-2)}\otimes(\ket{0} + e^{4\pi i\theta_k}\ket{1})\otimes(\ket{0} + e^{2\pi i\theta_k}\ket{1})\otimes\ket{\theta_k}.
+\end{equation}
+We continue applying an $(m-j)$-controlled-$U^{2^j}$ gate on $\ket{\chi}$ over the entire auxiliary register, ending up with the state
+\begin{equation}
+\frac{1}{\sqrt{2^m}}\sum_{k=0}^{2^m-1}\chi_k(\ket{0} + e^{2^m\pi i\theta_k}\ket{1})\dots(\ket{0} + e^{2\pi i\theta_k}\ket{1})\otimes\ket{\theta_k}.
+\end{equation}
+By induction, one can see that
+\begin{equation}
+\bigotimes_{j=0}^{m-1}(\ket{0} + e^{2^{m-j}\pi i\theta_k}\ket{1}) = \sum_{h=0}^{2^m-1}e^{2h\pi i\theta_k}\ket{h}.
+\end{equation}
+Indeed, for $m=1$ the two expressions trivially coincide, whereas 
+\begin{align}
+&\bigotimes_{j=0}^{m}(\ket{0} + e^{2^{m-j+1}\pi i\theta_k}\ket{1}) = (\ket{0} + e^{2^{m+1}\pi i\theta_k}\ket{1})\otimes \bigotimes_{j=1}^m(\ket{0} + e^{2^{m-j+1}\pi i\theta_k}\ket{1}) = \nonumber\\
+&(\ket{0} + e^{2^{m+1}\pi i\theta_k}\ket{1})\otimes \bigotimes_{l=0}^{m-1}(\ket{0} + e^{2^{m-l}\pi i\theta_k}\ket{1}) = \nonumber\\
+&(\ket{0} + e^{2^{m+1}\pi i\theta_k}\ket{1})\otimes\sum_{h=0}^{2^m-1}e^{2h\pi i\theta_k}\ket{h} = \nonumber\\
+&\sum_{h=0}^{2^m-1}\Big(e^{2h\pi i\theta_k}\ket{0}\otimes\ket{h} + e^{(2h+2^{m+1})\pi i\theta_k}\ket{1}\otimes\ket{h}\Big) = \nonumber\\
+&\sum_{h=0}^{2^m-1}\Big(e^{2h\pi i\theta_k}\ket{h} + e^{2(h+2^m)\pi i\theta_k}\otimes\ket{h+2^m}\Big) = \nonumber\\
+&\sum_{h=0}^{2^m-1}e^{2h\pi i\theta_k}\ket{h} + \sum_{h=2^m}^{2^{m+1}-1}e^{2h\pi i\theta_k}\ket{h} =  \sum_{h=0}^{2^{m+1}-1}e^{2h\pi i\theta_k}\ket{h}.
+\end{align}
+Therefore, we can express the state of our memory in Eq. \eqref{eq:phase_estim} as
+\begin{equation}
+\frac{1}{\sqrt{2^m}}\sum_{h,k=0}^{2^m-1}\chi_k\,e^{2h\pi i\theta_k}\ket{h}\ket{\theta_k}.
+\end{equation}
+Finally, applying a quantum Fourier transform on the auxiliary register, we get the state
+\begin{equation}
+\frac{1}{\sqrt{2^m}}\sum_{h,k=0}^{2^m-1}\chi_k\,e^{2h\pi i\theta_k}\mathcal{F}_m\ket{h}\otimes\ket{\theta_k} = \frac{1}{2^m}\sum_{h,k,j=0}^{2^m-1}\chi_k\,e^{\frac{2\pi i}{2^m}h(2^m\theta_k-j)}\ket{j}\otimes\ket{\theta_k}.
+\end{equation}
+We now measure the qubits of the auxiliary register. The probability to obtain the integer $j$ is
+\begin{equation}
+p_j = \frac{1}{4^m}\Big|\sum_{h,k=0}^{2^m-1}\chi_k\,e^{\frac{2\pi i}{2^m}h(2^m\theta_k-j)}\Big|^2.
+\end{equation}
+Suppose that for each $k$, $2^m\theta_k = n_k$ for some integer $n_k=0,\dots,2^m-1$--which is precisely the case for $U_\mathbf{p}$. Then
+\begin{align}
+p_{j} &= \frac{1}{4^m}\Big|\sum_{h,k=0}^{2^m-1}\chi_k\,e^{\frac{2\pi i}{2^m}h(n_k-j)}\Big|^2 =  \nonumber\\
+&= \frac{1}{4^m}\Big|\sum_{h=0}^{2^m-1}\chi_{k(j)} + \sum_{k:n_k\neq j}\chi_k\sum_{h=0}^{2^m-1}e^{\frac{2\pi i}{2^m}h(n_k-j)}\Big|^2 = \nonumber\\
+&= \frac{1}{4^m}\bigg|2^m\chi_{k(j)} + \sum_{k:n_k\neq j}\chi_k\frac{1-e^{2\pi i(n_k-j)}}{1-e^{\frac{2\pi i}{2^m}h(n_k-j)}}\bigg|^2 = |\chi_{k(j)}|^2,
+\end{align}
+where $k(j)$ is the unique index such that $n_{k(j)}=j$. In other words, the probability of measuring the index $j$ coincides with the probability of measuring $n_{k(j)}$ in the eigenbasis of $U$.
+
+\begin{thebibliography}{}
+\bibitem{preskill14}
+S. P. Jordan, K. S. M. Lee, and J. Preskill, \textit{Quantum Computation of Scattering in Scalar Quantum Field Theories}, 	Quantum Inf. Comput. \textbf{14}, 1014 (2014).
+\bibitem{mosca98}
+R. Cleve, A. Ekert, C. Macchiavello, and M. Mosca, \textit{Quantum algorithms revisited}, Proc. R. Soc. Lond. A \textbf{454}, 339-354 (1998).
+\bibitem{perez17}
+L. Ruiz-Perez and J. C. Garcia-Escartina, \textit{Quantum arithmetic with the quantum Fourier transform}, Quantum Inf. Process. \textbf{16}, 152 (2017).
+\bibitem{kitaev08}
+A. Kitaev and W. A. Webb, \textit{Wavefunction preparation and resampling using a quantum computer}, 	arXiv:0801.0342 [quant-ph]
+
+\end{thebibliography}
+\end{document}

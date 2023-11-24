@@ -1,0 +1,81 @@
+%Dario Latex Package version 1.32
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{dpackage}[2019/10/02 Dario Pack v1.31]
+%Packages needed respectively for:  mathbb command; proof environment; eqref command and align environment; ket,bra and Tr commands;color command; tikzpictures.
+\RequirePackage{hyperref,amssymb,amsthm,mathtools,physics,xcolor,tikz}
+
+\hypersetup{
+  colorlinks   = true, %Colours links instead of ugly boxes
+  urlcolor     = red, %Colour for external hyperlinks
+  linkcolor    = blue, %Colour of internal links
+  citecolor   = violet %Colour of citations
+} 
+
+% Spelling
+\newcommand{\mi}{\mu}
+\newcommand{\nee}{\nu}
+
+% Common in Mathematics
+\newcommand{\de}{\partial}
+\newcommand{\diff}{\mathrm{d}}
+\newcommand{\rk}{\mathrm{rk}\,}
+\newcommand{\Dom}{\mathrm{Dom}\,}
+\newcommand{\Perm}{\mathfrak{S}\,}
+\newcommand{\id}{\mathrm{id}\,}
+
+% Common in Physics
+\newcommand{\Ham}{\mathcal{H}}
+\newcommand{\Ord}{\mathcal{O}}
+\newcommand{\slsh}[1]{\slashed{#1}}
+%\newcommand{\kket}[1]{|#1\rangle\rangle}
+%\newcommand{\bbra}[1]{\langle\langle#1|} Do I ever actually use these outside the thesis and proj00?
+
+% Numeric sets
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+
+% Algebra (mainly linear)
+\newcommand{\Ker}{\mathrm{Ker}\,}
+\newcommand{\Img}{\mathrm{Im}\,}
+\newcommand{\Hom}{\mathrm{Hom}\,}
+\newcommand{\End}{\mathrm{End}\,}
+\newcommand{\Aut}{\mathrm{Aut}\,}
+\newcommand{\Span}{\mathrm{Span}\,}
+
+% Functional Analysis
+\newcommand{\Lin}{\mathcal{L}}
+\newcommand{\Hil}{\mathfrak{H}}
+
+%Operator Algebras
+\newcommand{\A}{\mathfrak{A}}
+
+% Statistics
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Cov}{\mathrm{Cov}}
+\newcommand{\Cor}{\mathrm{Cor}}
+
+% Special functions
+\newcommand{\Li}{\mathrm{Li}\,}
+
+% Relativity
+\newcommand{\M}{\mathbb{M}}
+\newcommand{\I}{\mathbb{I}}
+\newcommand{\X}{\mathbb{X}}
+
+% Theorems & affine
+\renewcommand\qedsymbol{$\blacksquare$}
+
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}[section]
+\newtheorem{example}{Example}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{lemma}{Lemma}[section]
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[section]
+\newtheorem{exercise}{Exercise}[section]
+
+\endinput
